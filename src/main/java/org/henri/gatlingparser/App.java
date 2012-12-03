@@ -1,7 +1,6 @@
 package org.henri.gatlingparser;
 
 import java.io.BufferedWriter;
-import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.util.ArrayList;
@@ -29,7 +28,7 @@ public class App
     private static final int START = 4;
     private static final int END = 5;
     
-    private static class Request {
+    static class Request {
         public Request(long start, long end) {
             this.startOfRequestSending = start;
             this.endOfResponseReceiving = end;
@@ -39,7 +38,7 @@ public class App
         long endOfResponseReceiving;
     }
     
-    private static class Stat {
+    static class Stat {
         String name;
         long execution, min, max, mean, stdDeviation, percentile95, percentile99;
         
@@ -86,12 +85,9 @@ public class App
         Map<String, Stat> stats = calculateStats(requests);
         requests = null; // no need to keep it
         
-        File file = new File(filename);
-        String path = FilenameUtils.getFullPathNoEndSeparator(file.getAbsolutePath());
-        String baseName = FilenameUtils.getBaseName(filename);
+        String outputFilename = deduceOutputFilename(filename);
         
-        BufferedWriter out = new BufferedWriter(new FileWriter(path + File.separatorChar + baseName
-                + "-result.txt"));
+        BufferedWriter out = new BufferedWriter(new FileWriter(outputFilename));
         out.write(String.format("%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s", "name", "execution", "min", "max", "mean", "stdDeviation", "percentile95", "percentile99"));
         out.newLine();
         for(Map.Entry<String, Stat> entry : stats.entrySet()) {
@@ -103,7 +99,13 @@ public class App
         
     }
 
-    private static Map<String, Stat> calculateStats( Map<String, List<Request>> requests) {
+    static String deduceOutputFilename(String filename) {
+        String path = FilenameUtils.getFullPathNoEndSeparator(filename);
+        String baseName = FilenameUtils.getBaseName(filename);
+        return FilenameUtils.concat(path, baseName + "-result.txt");
+    }
+
+    static Map<String, Stat> calculateStats(Map<String, List<Request>> requests) {
         Map<String, Stat> stats = new HashMap<>();
         Min min = new Min();
         Max max = new Max();
