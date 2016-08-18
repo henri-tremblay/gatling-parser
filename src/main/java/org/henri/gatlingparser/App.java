@@ -17,25 +17,31 @@ import org.apache.commons.math3.stat.descriptive.rank.Percentile;
 
 import au.com.bytecode.opencsv.CSVReader;
 
-/**
- * Hello world!
- *
- */
 public class App
 {
-    private static final int TYPE = 0;
-    private static final int NAME = 3;
-    private static final int START = 4;
-    private static final int END = 5;
-    
+    //https://groups.google.com/forum/#!topic/gatling/mbvN5CBDK4w
+    //[scenario][userId][recordType][groupHierarchy][name][first/last byte sent timestamp][first/last byte received timestamp][status][extraInfo]
+    private static final int TYPE = 2;
+    private static final int NAME = 4;
+    private static final int REQUEST_START = 5;
+    private static final int RESPONSE_END = 8;
+    private static final int STATUS = 9;
+
     static class Request {
-        public Request(long start, long end) {
+        String name;
+        long startOfRequestSending;
+        long endOfResponseReceiving;
+
+        public Request(String name, long start, long end) {
+            this.name = name;
             this.startOfRequestSending = start;
             this.endOfResponseReceiving = end;
         }
-        
-        long startOfRequestSending;
-        long endOfResponseReceiving;
+
+
+        public String toString() {
+            return name + ": " + endOfResponseReceiving + " - " + startOfRequestSending + " = " + (endOfResponseReceiving - startOfRequestSending);
+        }
     }
     
     static class Stat {
@@ -60,42 +66,44 @@ public class App
         
         String filename = args[0];
         
-        CSVReader reader = new CSVReader(new FileReader(filename), '\t');
-        String [] nextLine;
-        while ((nextLine = reader.readNext()) != null) {
-            if(!"ACTION".equals(nextLine[TYPE])) {
-                continue;
+        try(CSVReader reader = new CSVReader(new FileReader(filename), '\t')) {
+            String[] nextLine;
+            while ((nextLine = reader.readNext()) != null) {
+                if (!"REQUEST".equals(nextLine[TYPE])) {
+                    continue;
+                }
+                // Skip failed requests
+                if (!"OK".equals(nextLine[STATUS])) {
+                    continue;
+                }
+                String name = nextLine[NAME];
+                long start = Long.parseLong(nextLine[REQUEST_START]);
+                long end = Long.parseLong(nextLine[RESPONSE_END]);
+                List<Request> list = requests.get(name);
+                if (list == null) {
+                    list = new ArrayList<>();
+                    requests.put(name, list);
+                }
+                Request request = new Request(name, start, end);
+//                System.out.println(request);
+                list.add(request);
             }
-            String name = nextLine[NAME];
-            if(!name.startsWith("Request")) {
-                continue;
-            }
-            long start = Long.parseLong(nextLine[START]);
-            long end = Long.parseLong(nextLine[END]);
-            List<Request> list = requests.get(name);
-            if(list == null) {
-                list = new ArrayList<>();
-                requests.put(name, list);
-            }
-            Request request = new Request(start, end);
-            list.add(request);
         }
-        reader.close();
-        
+
         Map<String, Stat> stats = calculateStats(requests);
         requests = null; // no need to keep it
         
         String outputFilename = deduceOutputFilename(filename);
         
-        BufferedWriter out = new BufferedWriter(new FileWriter(outputFilename));
-        out.write(String.format("%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s", "name", "execution", "min", "max", "mean", "stdDeviation", "percentile95", "percentile99"));
-        out.newLine();
-        for(Map.Entry<String, Stat> entry : stats.entrySet()) {
-            Stat stat = entry.getValue();
-            out.write(stat.toString());
+        try(BufferedWriter out = new BufferedWriter(new FileWriter(outputFilename))) {
+            out.write(String.format("%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s", "name", "execution", "min", "max", "mean", "stdDeviation", "percentile95", "percentile99"));
             out.newLine();
+            for (Map.Entry<String, Stat> entry : stats.entrySet()) {
+                Stat stat = entry.getValue();
+                out.write(stat.toString());
+                out.newLine();
+            }
         }
-        out.close();
         
     }
 
@@ -117,7 +125,7 @@ public class App
             double[] times = new double[request.size()];
             for(int i = 0; i < request.size(); i++) {
                 times[i] = request.get(i).endOfResponseReceiving - request.get(i).startOfRequestSending;
-            }            
+            }
             Stat stat = new Stat();
             stat.name = entry.getKey();
             stat.execution = request.size();
