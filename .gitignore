@@ -5,3 +5,6 @@ target/
 *.log
 org.eclipse.core.resources.prefs
 org.eclipse.m2e.core.prefs
+.idea/
+*.iml
+*.zip
