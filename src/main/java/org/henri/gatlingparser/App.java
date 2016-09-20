@@ -1,13 +1,6 @@
 package org.henri.gatlingparser;
 
-import java.io.BufferedWriter;
-import java.io.FileReader;
-import java.io.FileWriter;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
+import au.com.bytecode.opencsv.CSVReader;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.math3.stat.descriptive.moment.Mean;
 import org.apache.commons.math3.stat.descriptive.moment.StandardDeviation;
@@ -15,7 +8,16 @@ import org.apache.commons.math3.stat.descriptive.rank.Max;
 import org.apache.commons.math3.stat.descriptive.rank.Min;
 import org.apache.commons.math3.stat.descriptive.rank.Percentile;
 
-import au.com.bytecode.opencsv.CSVReader;
+import java.io.BufferedWriter;
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 public class App
 {
@@ -95,13 +97,24 @@ public class App
         
         String outputFilename = deduceOutputFilename(filename);
         
-        try(BufferedWriter out = new BufferedWriter(new FileWriter(outputFilename))) {
+        try(BufferedWriter out = Files.newBufferedWriter(Paths.get(outputFilename))) {
             out.write(String.format("%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s", "name", "execution", "min", "max", "mean", "stdDeviation", "percentile95", "percentile99"));
             out.newLine();
-            for (Map.Entry<String, Stat> entry : stats.entrySet()) {
-                Stat stat = entry.getValue();
-                out.write(stat.toString());
-                out.newLine();
+            try {
+                stats.entrySet().stream()
+                    .map(Map.Entry::getValue)
+                    .forEachOrdered(stat -> {
+                        try {
+                            out.write(stat.toString());
+                            out.newLine();
+                        }
+                        catch(IOException e) {
+                            throw new UncheckedIOException(e);
+                        }
+                    });
+            }
+            catch(UncheckedIOException e) {
+                throw e.getCause();
             }
         }
         
