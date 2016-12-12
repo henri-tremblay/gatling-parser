@@ -2,7 +2,7 @@ target/
 .classpath
 .project
 *-result.txt
-*.log
+/*.log
 org.eclipse.core.resources.prefs
 org.eclipse.m2e.core.prefs
 .idea/
