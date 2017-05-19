@@ -21,13 +21,25 @@ import java.util.Map;
 
 public class App
 {
-    //https://groups.google.com/forum/#!topic/gatling/mbvN5CBDK4w
-    //[scenario][userId][recordType][groupHierarchy][name][first/last byte sent timestamp][first/last byte received timestamp][status][extraInfo]
-    private static final int TYPE = 2;
-    private static final int NAME = 4;
-    private static final int REQUEST_START = 5;
-    private static final int RESPONSE_END = 8;
-    private static final int STATUS = 9;
+    enum GatlingSimulationRecordFormat {
+        //https://groups.google.com/forum/#!topic/gatling/mbvN5CBDK4w
+        //[scenario][userId][recordType][groupHierarchy][name][first/last byte sent timestamp][first/last byte received timestamp][status][extraInfo]
+        v1 (2, 4, 5, 8, 9),
+        // From io.gatling.core.stats.writer
+        //fast"${RequestRecordHeader.value}][scenario][userId][{serializeGroups(groupHierarchy)}][name][startTimestamp][endTimestamp][status][{serializeMessage(message)}${serializeExtraInfo(extraInfo)}$
+        v2 (0, 4, 5, 6, 7);
+
+        int typeIndex, nameIndex, requestStartIndex, responseEndIndex, statusIndex;
+
+        GatlingSimulationRecordFormat(int typeIndex,int nameIndex,int requestStartIndex, int  responseEndIndex,int statusIndex) {
+          this.typeIndex         = typeIndex;
+          this.nameIndex         = nameIndex;
+          this.requestStartIndex = requestStartIndex;
+          this.responseEndIndex  = responseEndIndex;
+          this.statusIndex       = statusIndex;
+        }
+
+    }
 
     static class Request {
         String name;
@@ -58,29 +70,33 @@ public class App
     
     public static void main(String... args) throws Exception
     {
-        if(args.length != 1) {
-            System.out.println("Usage: App simulation.log");
-            System.exit(1);
-            return;
+        String filename = "undefined";
+        GatlingSimulationRecordFormat  recordFormat = GatlingSimulationRecordFormat.v1;
+
+        switch (args.length) {
+            case 1 : filename = args[0]; break;
+            case 2 : filename = args[0]; recordFormat = GatlingSimulationRecordFormat.valueOf(args[1]); break;
+            default :
+                     System.out.println("Usage: App simulation.log [v1|v2]");
+                     System.exit(1);
+                     return;
         }
      
         Map<String, List<Request>> requests = new HashMap<>();
         
-        String filename = args[0];
-        
         try(CSVReader reader = new CSVReader(new FileReader(filename), '\t')) {
             String[] nextLine;
             while ((nextLine = reader.readNext()) != null) {
-                if (!"REQUEST".equals(nextLine[TYPE])) {
+                if (!"REQUEST".equals(nextLine[recordFormat.typeIndex])) {
                     continue;
                 }
                 // Skip failed requests
-                if (!"OK".equals(nextLine[STATUS])) {
+                if (!"OK".equals(nextLine[recordFormat.statusIndex])) {
                     continue;
                 }
-                String name = nextLine[NAME];
-                long start = Long.parseLong(nextLine[REQUEST_START]);
-                long end = Long.parseLong(nextLine[RESPONSE_END]);
+                String name = nextLine[recordFormat.nameIndex];
+                long start = Long.parseLong(nextLine[recordFormat.requestStartIndex]);
+                long end = Long.parseLong(nextLine[recordFormat.responseEndIndex]);
                 List<Request> list = requests.get(name);
                 if (list == null) {
                     list = new ArrayList<>();
